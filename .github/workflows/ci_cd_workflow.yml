@@ -75,4 +75,49 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          na
+          name: allure-results
+          path: allure-results
+      
+      - name: Generate Allure Report
+        uses: simple-elf/allure-report-action@master
+        if: always()
+        with:
+          allure_results: allure-results
+          allure_history: allure-history
+      
+      - name: Upload Allure Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: allure-report
+          path: allure-report
+      
+      - name: Set current date as env variable
+        if: always()
+        run: |
+          echo "event_name=$GITHUB_EVENT_NAME" >> $GITHUB_OUTPUT
+          echo "workflow=$GITHUB_WORKFLOW" >> $GITHUB_OUTPUT
+          echo "actor=$GITHUB_ACTOR" >> $GITHUB_OUTPUT
+          echo "run_number=$GITHUB_RUN_NUMBER" >> $GITHUB_OUTPUT
+        id: version
+      
+      - name: Add Coverage Comment to PR
+        if: github.event_name == 'pull_request' && always()
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-xml-coverage-path: coverage.xml
+          title: Python Test Coverage Report
+          create-new-comment: true
+          report-only-changed-files: true
+          
+      - name: Check test status and set job output
+        if: always()
+        id: check_status
+        run: |
+          if [ "${{ steps.run_tests.outcome }}" == "failure" ]; then
+            echo "tests_failed=true" >> $GITHUB_OUTPUT
+          else
+            echo "tests_failed=false" >> $GITHUB_OUTPUT
+          fi
+    outputs:
+      tests_failed: ${{ steps.check_status.outputs.tests_failed }}
