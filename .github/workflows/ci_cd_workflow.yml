@@ -10,7 +10,7 @@ on:
     branches:
       - main
     paths:
-      - '**.py'  # Changed to trigger on any Python file
+      - '**.py'
   workflow_dispatch:
 
 env:
@@ -18,7 +18,7 @@ env:
 
 jobs:
   test:
-    name: 'Run Python Tests'  # Changed from PySpark to Python
+    name: 'Run Python Tests'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -51,20 +51,20 @@ jobs:
             fi
           done
           
-      - name: Run Python tests with detailed errors
+      - name: Run Python tests with Allure
         id: run_tests
         continue-on-error: true
         run: |
           export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE
-          echo "=== Running pytest with verbose error reporting ==="
-          # First, try to collect tests and show detailed errors
-          pytest --collect-only -v . || echo "Collection failed"
-          
-          echo ""
-          echo "=== Running tests with full error details ==="
-          # Run all pytest tests in the root directory with full error output
-          pytest . --tb=long -v --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --alluredir=allure-results || echo "Tests completed with errors"
-        
+          echo "=== Running pytest with Allure output ==="
+          pytest *.py test_*.py *_test.py --tb=long -v --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --alluredir=allure-results || echo "Tests completed with errors"
+
+      - name: Debug - Check allure-results directory
+        if: always()
+        run: |
+          echo "Contents of allure-results:"
+          ls -l allure-results || echo "No allure-results directory found"
+      
       - name: Get Allure history
         uses: actions/checkout@v4
         if: always()
@@ -78,20 +78,20 @@ jobs:
         if: always()
         with:
           name: coverage_html
-          path: coverage_html  # Changed from terraform/modules/tests/coverage_html
+          path: coverage_html
       
       - name: Upload Allure Results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: allure-results
-          path: allure-results  # Changed from terraform/modules/tests/allure-results
+          path: allure-results
       
       - name: Generate Allure Report
         uses: simple-elf/allure-report-action@master
         if: always()
         with:
-          allure_results: allure-results  # Changed from terraform/modules/tests/allure-results
+          allure_results: allure-results
           allure_history: allure-history
       
       - name: Upload Allure Report
@@ -122,8 +122,8 @@ jobs:
         if: github.event_name == 'pull_request' && always()
         uses: MishaKav/pytest-coverage-comment@main
         with:
-          pytest-xml-coverage-path: coverage.xml  # Changed from terraform/modules/tests/coverage.xml
-          title: Python Test Coverage Report  # Changed from PySpark
+          pytest-xml-coverage-path: coverage.xml
+          title: Python Test Coverage Report
           create-new-comment: true
           report-only-changed-files: true
           
