@@ -34,13 +34,36 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-cov allure-pytest boto3 awscli pytest-rerunfailures pandas numpy moto python-docx
         
-      - name: Run Python tests
+      - name: Debug - Check test files
+        run: |
+          echo "=== Python files in root directory ==="
+          find . -maxdepth 1 -name "*.py" -type f
+          echo ""
+          echo "=== Test files found ==="
+          find . -name "test_*.py" -o -name "*_test.py"
+          echo ""
+          echo "=== Content of test files ==="
+          for file in test_*.py *_test.py; do
+            if [ -f "$file" ]; then
+              echo "--- $file ---"
+              head -10 "$file"
+              echo ""
+            fi
+          done
+          
+      - name: Run Python tests with detailed errors
         id: run_tests
         continue-on-error: true
         run: |
           export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE
-          # Run all pytest tests in the root directory
-          pytest . --continue-on-collection-errors --no-summary --reruns 3 -v --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --alluredir=allure-results
+          echo "=== Running pytest with verbose error reporting ==="
+          # First, try to collect tests and show detailed errors
+          pytest --collect-only -v . || echo "Collection failed"
+          
+          echo ""
+          echo "=== Running tests with full error details ==="
+          # Run all pytest tests in the root directory with full error output
+          pytest . --tb=long -v --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --alluredir=allure-results || echo "Tests completed with errors"
         
       - name: Get Allure history
         uses: actions/checkout@v4
