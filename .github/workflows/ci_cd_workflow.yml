@@ -1,10 +1,8 @@
 name: Process Customers Data
-
 permissions:
   contents: write
   pages: write
   id-token: write
-
 on:
   push:
     branches:
@@ -12,10 +10,8 @@ on:
     paths:
       - 'terraform/modules/scripts/customers.py'
   workflow_dispatch:
-
 env:
   TEST_EXECUTION_ENV: prod
-
 jobs:
   test:
     name: 'Run Python Tests'
@@ -42,12 +38,20 @@ jobs:
           pytest --continue-on-collection-errors --no-summary --reruns 3 -v --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --alluredir=allure-results
         
       - name: Get Allure history
-        uses: actions/checkout@v4
         if: always()
         continue-on-error: true
-        with:
-          ref: gh-pages
-          path: gh-pages
+        run: |
+          if git ls-remote --heads origin gh-pages | grep gh-pages; then
+            echo "gh-pages branch exists, fetching history..."
+            git fetch origin gh-pages
+            git checkout gh-pages
+            mkdir -p allure-history
+            cp -r allure-history/* . || true
+            git checkout ${{ github.ref_name }}
+          else
+            echo "gh-pages branch does not exist, creating allure-history directory..."
+            mkdir -p allure-history
+          fi
       
       - name: Upload Coverage Report (HTML)
         uses: actions/upload-artifact@v4
@@ -84,6 +88,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: allure-history
           keep_files: false
+          force_orphan: true
       
       - name: Set current date as env variable
         if: always()
