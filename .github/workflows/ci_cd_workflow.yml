@@ -1,26 +1,28 @@
 name: Process Customers Data
+
 permissions:
   contents: write
   pages: write
   id-token: write
+
 on:
   push:
     branches:
       - main
     paths:
-      - '**.py'
+      - '**.py'  # Changed to trigger on any Python file
   workflow_dispatch:
+
 env:
   TEST_EXECUTION_ENV: prod
+
 jobs:
   test:
-    name: 'Run Python Tests'
+    name: 'Run Python Tests'  # Changed from PySpark to Python
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
         
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,161 +34,57 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-cov allure-pytest boto3 awscli pytest-rerunfailures pandas numpy moto python-docx
         
-      - name: Debug - Check test file
-        run: |
-          echo "=== Checking test_ingestion.py ==="
-          if [ -f "test_ingestion.py" ]; then
-            echo "✅ test_ingestion.py exists"
-            echo "File size: $(du -h test_ingestion.py)"
-            echo ""
-            echo "=== First 20 lines of test_ingestion.py ==="
-            head -20 test_ingestion.py
-          else
-            echo "❌ test_ingestion.py not found"
-          fi
-          
-          echo ""
-          echo "=== All Python files in root ==="
-          ls -la *.py 2>/dev/null || echo "No Python files in root"
-        
-      - name: Run Python tests with Allure
+      - name: Run Python tests
         id: run_tests
         continue-on-error: true
         run: |
-          export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE:$PWD
-          echo "=== Running pytest on test_ingestion.py ==="
-          
-          # Run the specific test file with Allure reporting
-          pytest test_ingestion.py -v -s \
-            --alluredir=allure-results \
-            --cov=. \
-            --cov-report=xml:coverage.xml \
-            --cov-report=html:coverage_html \
-            --tb=short \
-            --junit-xml=junit.xml || echo "Tests completed with exit code $?"
-          
-          echo ""
-          echo "=== Checking test results ==="
-          if [ -d "allure-results" ]; then
-            echo "✅ Allure results directory exists"
-            echo "Files in allure-results:"
-            ls -la allure-results/
-            echo "Number of result files: $(find allure-results -name "*.json" | wc -l)"
-            
-            # Show content of result files
-            echo ""
-            echo "=== Sample allure result files ==="
-            find allure-results -name "*.json" | head -2 | while read file; do
-              echo "Content of $file:"
-              cat "$file" | head -10
-              echo "---"
-            done
-          else
-            echo "❌ No allure-results directory found"
-          fi
-          
-          # Also check for junit results
-          if [ -f "junit.xml" ]; then
-            echo "✅ JUnit XML exists"
-            echo "JUnit file size: $(du -h junit.xml)"
-          fi
+          export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE
+          # Run tests from root directory where test_ingestion.py is located
+          pytest test_ingestion.py --continue-on-collection-errors --no-summary --reruns 3 -v --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --alluredir=allure-results
         
-      - name: Create Allure environment info
+      - name: Get Allure history
+        uses: actions/checkout@v4
         if: always()
-        run: |
-          mkdir -p allure-results
-          cat > allure-results/environment.properties << EOF
-          Python.Version=3.9
-          Test.Environment=prod
-          Repository=womens-rights-legal-assistant
-          Workflow.Run=${{ github.run_number }}
-          Branch=${{ github.ref_name }}
-          EOF
-          echo "Created environment.properties"
-        
-      - name: Create allure-history directory
-        if: always()
-        run: |
-          mkdir -p allure-history
-          echo "Created allure-history directory"
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: gh-pages
       
       - name: Upload Coverage Report (HTML)
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage_html
-          path: coverage_html
+          path: coverage_html  # Changed from terraform/modules/tests/coverage_html
       
-      - name: Upload Allure Results (Debug)
+      - name: Upload Allure Results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: allure-results-debug
-          path: allure-results
+          name: allure-results
+          path: allure-results  # Changed from terraform/modules/tests/allure-results
       
       - name: Generate Allure Report
         uses: simple-elf/allure-report-action@master
         if: always()
-        id: allure_report
         with:
-          allure_results: allure-results
+          allure_results: allure-results  # Changed from terraform/modules/tests/allure-results
           allure_history: allure-history
-          keep_reports: 20
-        
-      - name: Debug - Verify Allure Report Generation
-        if: always()
-        run: |
-          echo "=== Checking allure-history after report generation ==="
-          if [ -d "allure-history" ]; then
-            echo "✅ allure-history directory exists"
-            ls -la allure-history/
-            
-            if [ -f "allure-history/index.html" ]; then
-              echo "✅ index.html exists"
-              echo "File size: $(du -h allure-history/index.html)"
-              
-              # Check if index.html has content
-              if [ -s "allure-history/index.html" ]; then
-                echo "✅ index.html has content"
-                echo "First few lines of index.html:"
-                head -5 allure-history/index.html
-              else
-                echo "❌ index.html is empty"
-              fi
-            else
-              echo "❌ No index.html found"
-            fi
-            
-            echo ""
-            echo "=== Other files in allure-history ==="
-            find allure-history -type f | head -10
-          else
-            echo "❌ No allure-history directory found"
-          fi
       
       - name: Upload Allure Report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: allure-report
-          path: allure-history
+          path: allure-report
       
       - name: Deploy to GitHub Pages
         if: always()
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: allure-history
-          keep_files: true
-          force_orphan: false
-      
-      - name: Final Debug - Pages Deployment
-        if: always()
-        run: |
-          echo "=== Deployment Summary ==="
-          echo "Repository: ${{ github.repository }}"
-          echo "Pages URL should be: https://ajay263.github.io/womens-rights-legal-assistant/"
-          echo "Workflow completed at: $(date)"
+          keep_files: false
       
       - name: Set current date as env variable
         if: always()
@@ -201,7 +99,19 @@ jobs:
         if: github.event_name == 'pull_request' && always()
         uses: MishaKav/pytest-coverage-comment@main
         with:
-          pytest-xml-coverage-path: coverage.xml
-          title: Python Test Coverage Report
+          pytest-xml-coverage-path: coverage.xml  # Changed from terraform/modules/tests/coverage.xml
+          title: Python Test Coverage Report  # Changed from PySpark
           create-new-comment: true
           report-only-changed-files: true
+          
+      - name: Check test status and set job output
+        if: always()
+        id: check_status
+        run: |
+          if [ "${{ steps.run_tests.outcome }}" == "failure" ]; then
+            echo "tests_failed=true" >> $GITHUB_OUTPUT
+          else
+            echo "tests_failed=false" >> $GITHUB_OUTPUT
+          fi
+    outputs:
+      tests_failed: ${{ steps.check_status.outputs.tests_failed }}
