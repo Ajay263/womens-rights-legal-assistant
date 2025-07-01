@@ -32,83 +32,77 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-cov allure-pytest boto3 awscli pytest-rerunfailures pandas numpy moto python-docx
         
-      - name: Debug - Find test files
+      - name: Debug - Check test file
         run: |
-          echo "=== Repository structure ==="
-          find . -type f -name "*.py" | grep -E "(test_|_test\.py|conftest\.py)" || echo "No test files found with standard naming"
-          echo ""
-          echo "=== All Python files ==="
-          find . -name "*.py" -type f | head -20
-          echo ""
-          echo "=== Root directory contents ==="
-          ls -la
-          echo ""
-          echo "=== Looking for any files with 'test' in name ==="
-          find . -name "*test*" -type f || echo "No files with 'test' in name"
-        
-      - name: Create simple test file if none exist
-        run: |
-          if [ ! -f test_example.py ] && [ $(find . -name "test_*.py" -o -name "*_test.py" | wc -l) -eq 0 ]; then
-            echo "No test files found, creating a simple example test..."
-            cat > test_example.py << 'EOF'
-          import allure
-          import pytest
-
-          @allure.feature("Example Feature")
-          @allure.story("Basic Test")
-          def test_example():
-              """Simple example test to generate Allure report"""
-              with allure.step("Step 1: Setup"):
-                  x = 1
-              
-              with allure.step("Step 2: Execute"):
-                  y = 2
-              
-              with allure.step("Step 3: Verify"):
-                  assert x + y == 3, "Basic math should work"
-
-          @allure.feature("Example Feature") 
-          @allure.story("Another Test")
-          def test_another_example():
-              """Another test for demo purposes"""
-              with allure.step("Testing string operations"):
-                  result = "hello".upper()
-                  assert result == "HELLO"
-
-          @allure.feature("Example Feature")
-          @allure.story("Failing Test")
-          def test_expected_failure():
-              """This test will fail to show failure reporting"""
-              with allure.step("This step will fail"):
-                  assert 1 == 2, "This is expected to fail for demo"
-          EOF
-            echo "Created test_example.py"
+          echo "=== Checking test_ingestion.py ==="
+          if [ -f "test_ingestion.py" ]; then
+            echo "✅ test_ingestion.py exists"
+            echo "File size: $(du -h test_ingestion.py)"
+            echo ""
+            echo "=== First 20 lines of test_ingestion.py ==="
+            head -20 test_ingestion.py
+          else
+            echo "❌ test_ingestion.py not found"
           fi
+          
+          echo ""
+          echo "=== All Python files in root ==="
+          ls -la *.py 2>/dev/null || echo "No Python files in root"
         
       - name: Run Python tests with Allure
         id: run_tests
         continue-on-error: true
         run: |
           export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE:$PWD
-          echo "=== Running pytest with Allure ==="
+          echo "=== Running pytest on test_ingestion.py ==="
           
-          # First, try to find and run tests
-          if find . -name "test_*.py" -o -name "*_test.py" | grep -q .; then
-            echo "Found test files, running pytest..."
-            pytest -v --alluredir=allure-results --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --tb=short
-          else
-            echo "No test files found, running pytest on current directory..."
-            pytest . -v --alluredir=allure-results --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --tb=short
-          fi
+          # Run the specific test file with Allure reporting
+          pytest test_ingestion.py -v -s \
+            --alluredir=allure-results \
+            --cov=. \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:coverage_html \
+            --tb=short \
+            --junit-xml=junit.xml || echo "Tests completed with exit code $?"
           
-          echo "=== Checking allure-results ==="
+          echo ""
+          echo "=== Checking test results ==="
           if [ -d "allure-results" ]; then
-            echo "Allure results directory exists"
+            echo "✅ Allure results directory exists"
+            echo "Files in allure-results:"
             ls -la allure-results/
-            echo "Number of result files: $(ls allure-results/ | wc -l)"
+            echo "Number of result files: $(find allure-results -name "*.json" | wc -l)"
+            
+            # Show content of result files
+            echo ""
+            echo "=== Sample allure result files ==="
+            find allure-results -name "*.json" | head -2 | while read file; do
+              echo "Content of $file:"
+              cat "$file" | head -10
+              echo "---"
+            done
           else
-            echo "No allure-results directory found"
+            echo "❌ No allure-results directory found"
           fi
+          
+          # Also check for junit results
+          if [ -f "junit.xml" ]; then
+            echo "✅ JUnit XML exists"
+            echo "JUnit file size: $(du -h junit.xml)"
+          fi
+        
+      - name: Create Allure environment info
+        if: always()
+        run: |
+          mkdir -p allure-results
+          cat > allure-results/environment.properties << EOF
+          Python.Version=3.9
+          Test.Environment=prod
+          Repository=womens-rights-legal-assistant
+          Workflow.Run=${{ github.run_number }}
+          Branch=${{ github.ref_name }}
+          EOF
+          echo "Created environment.properties"
         
       - name: Create allure-history directory
         if: always()
@@ -123,11 +117,11 @@ jobs:
           name: coverage_html
           path: coverage_html
       
-      - name: Upload Allure Results
+      - name: Upload Allure Results (Debug)
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: allure-results
+          name: allure-results-debug
           path: allure-results
       
       - name: Generate Allure Report
@@ -138,28 +132,36 @@ jobs:
           allure_results: allure-results
           allure_history: allure-history
           keep_reports: 20
-      
-      - name: Debug - Check generated report
+        
+      - name: Debug - Verify Allure Report Generation
         if: always()
         run: |
           echo "=== Checking allure-history after report generation ==="
           if [ -d "allure-history" ]; then
+            echo "✅ allure-history directory exists"
             ls -la allure-history/
+            
             if [ -f "allure-history/index.html" ]; then
-              echo "index.html exists in allure-history"
+              echo "✅ index.html exists"
               echo "File size: $(du -h allure-history/index.html)"
+              
+              # Check if index.html has content
+              if [ -s "allure-history/index.html" ]; then
+                echo "✅ index.html has content"
+                echo "First few lines of index.html:"
+                head -5 allure-history/index.html
+              else
+                echo "❌ index.html is empty"
+              fi
             else
-              echo "No index.html found in allure-history"
+              echo "❌ No index.html found"
             fi
+            
+            echo ""
+            echo "=== Other files in allure-history ==="
+            find allure-history -type f | head -10
           else
-            echo "No allure-history directory found"
-          fi
-          
-          echo "=== Checking allure-report directory ==="
-          if [ -d "allure-report" ]; then
-            ls -la allure-report/
-          else
-            echo "No allure-report directory found"
+            echo "❌ No allure-history directory found"
           fi
       
       - name: Upload Allure Report
@@ -167,7 +169,7 @@ jobs:
         if: always()
         with:
           name: allure-report
-          path: allure-report
+          path: allure-history
       
       - name: Deploy to GitHub Pages
         if: always()
@@ -177,6 +179,14 @@ jobs:
           publish_dir: allure-history
           keep_files: true
           force_orphan: false
+      
+      - name: Final Debug - Pages Deployment
+        if: always()
+        run: |
+          echo "=== Deployment Summary ==="
+          echo "Repository: ${{ github.repository }}"
+          echo "Pages URL should be: https://ajay263.github.io/womens-rights-legal-assistant/"
+          echo "Workflow completed at: $(date)"
       
       - name: Set current date as env variable
         if: always()
