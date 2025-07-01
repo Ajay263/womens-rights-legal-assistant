@@ -39,8 +39,8 @@ jobs:
         continue-on-error: true
         run: |
           export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE
-          # Run tests from root directory where test_ingestion.py is located
-          pytest test_ingestion.py --continue-on-collection-errors --no-summary --reruns 3 -v --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --alluredir=allure-results
+          # Run all pytest tests in the root directory
+          pytest . --continue-on-collection-errors --no-summary --reruns 3 -v --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --alluredir=allure-results
         
       - name: Get Allure history
         uses: actions/checkout@v4
