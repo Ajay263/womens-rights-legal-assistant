@@ -1,1 +1,1 @@
-# womens-rights-legal-assistant
+# Dissertation_Cursor

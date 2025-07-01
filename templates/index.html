@@ -1,0 +1,829 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<style>
+    /* Main layout */
+    .main-container {
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    /* Sidebar styles */
+    .chat-sidebar {
+        width: 260px;
+        height: 100vh;
+        background-color: var(--chat-primary);
+        border-right: 1px solid var(--chat-border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .new-chat-btn {
+        margin: 16px;
+        padding: 12px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border: 1px solid var(--chat-border);
+        border-radius: 8px;
+        color: var(--chat-text);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .new-chat-btn:hover {
+        background-color: rgba(255, 255, 255, 0.15);
+    }
+
+    #chat-history-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+    }
+
+    .chat-history-item {
+        padding: 12px;
+        margin: 4px 8px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        position: relative;
+    }
+
+    .chat-history-item:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .chat-history-item:hover .delete-btn {
+        opacity: 1;
+    }
+
+    .chat-history-item.active {
+        background-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .delete-btn {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: transparent;
+        border: none;
+        color: var(--chat-text);
+        padding: 4px;
+        border-radius: 4px;
+        cursor: pointer;
+        opacity: 0;
+        transition: all 0.2s;
+    }
+
+    .delete-btn:hover {
+        background-color: rgba(239, 68, 68, 0.2);
+        color: rgb(239, 68, 68);
+    }
+
+    /* Main chat area */
+    .chat-container {
+        flex: 1;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background-color: var(--chat-secondary);
+    }
+
+    .chat-messages {
+        flex-grow: 1;
+        overflow-y: auto;
+        padding: 2rem 0;
+    }
+
+    .message-wrapper {
+        padding: 1.5rem;
+        transition: background-color 0.2s;
+    }
+
+    .message-wrapper:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    .message {
+        max-width: 800px;
+        margin: 0 auto;
+        display: flex;
+        gap: 1rem;
+    }
+
+    .message-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--chat-primary);
+        flex-shrink: 0;
+    }
+
+    .message-content {
+        flex-grow: 1;
+        white-space: pre-wrap;
+    }
+
+    .message-actions {
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+
+    .message-wrapper:hover .message-actions {
+        opacity: 1;
+    }
+
+    .chat-input-container {
+        padding: 1.5rem;
+        background-color: var(--chat-secondary);
+        border-top: 1px solid var(--chat-border);
+    }
+
+    .chat-input-wrapper {
+        max-width: 800px;
+        margin: 0 auto;
+        position: relative;
+    }
+
+    .chat-input {
+        width: 100%;
+        min-height: 52px;
+        max-height: 200px;
+        padding: 14px 45px 14px 16px;
+        border-radius: 12px;
+        border: 1px solid var(--chat-border);
+        background-color: var(--chat-primary);
+        color: var(--chat-text);
+        resize: none;
+        overflow-y: auto;
+    }
+
+    .chat-input:focus {
+        outline: none;
+        border-color: #6ea9d7;
+        box-shadow: 0 0 0 2px rgba(110, 169, 215, 0.25);
+    }
+
+    .send-button {
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+        background: transparent;
+        border: none;
+        color: var(--chat-text);
+        padding: 8px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .send-button:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .send-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .typing-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .typing-dot {
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background-color: var(--chat-text);
+        animation: typing 1.4s infinite;
+    }
+
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typing {
+        0%, 60%, 100% { transform: translateY(0); }
+        30% { transform: translateY(-4px); }
+    }
+
+    .welcome-screen {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .welcome-screen h1 {
+        font-size: 2.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .welcome-screen p {
+        font-size: 1.1rem;
+        max-width: 600px;
+        margin-bottom: 2rem;
+        color: rgba(236, 236, 241, 0.8);
+    }
+
+    .subscription-alert {
+        position: fixed;
+        bottom: 90px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1000;
+        width: 100%;
+        max-width: 800px;
+        margin: 0 1rem;
+    }
+
+    .feedback-buttons {
+        margin-top: 1rem;
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+    }
+
+    .feedback-btn {
+        padding: 6px 16px;
+        border-radius: 6px;
+        border: 1px solid var(--chat-border);
+        background: transparent;
+        color: var(--chat-text);
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .feedback-btn:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        border-color: var(--chat-text);
+    }
+
+    .feedback-btn.selected {
+        background-color: var(--chat-primary);
+        border-color: var(--chat-text);
+        font-weight: 500;
+    }
+
+    .feedback-btn.helpful.selected {
+        background-color: rgba(34, 197, 94, 0.2);
+        border-color: rgb(34, 197, 94);
+        color: rgb(34, 197, 94);
+    }
+
+    .feedback-btn.not-helpful.selected {
+        background-color: rgba(239, 68, 68, 0.2);
+        border-color: rgb(239, 68, 68);
+        color: rgb(239, 68, 68);
+    }
+
+    .chat-history-content {
+        flex-grow: 1;
+        overflow: hidden;
+    }
+
+    .chat-history-title {
+        font-size: 0.9rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .chat-history-date {
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.5);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    {% if user %}
+        {% set subscription = user.subscription|default('free') %}
+        {% set usage_count = user.usage_count|default(0) %}
+        {% set limit = SUBSCRIPTION_LIMITS.get(subscription, 0) %}
+
+        <!-- Sidebar -->
+        <div class="chat-sidebar">
+            <button class="new-chat-btn d-flex align-items-center justify-content-center gap-2" onclick="startNewChat()">
+                <i class="bi bi-plus-lg"></i>
+                <span>New Chat</span>
+            </button>
+            <div id="chat-history-list">
+                {% for conv in conversations %}
+                <div class="chat-history-item" data-id="{{ conv.id }}">
+                    <div class="d-flex align-items-start gap-3 flex-grow-1" onclick="loadConversation({{ conv.id }})">
+                        <i class="bi bi-chat-left-text"></i>
+                        <div class="chat-history-content">
+                            <div class="chat-history-title">{{ conv.question[:30] + '...' if conv.question|length > 30 else conv.question }}</div>
+                            <div class="chat-history-date">{{ conv.created_at }}</div>
+                        </div>
+                    </div>
+                    <button class="delete-btn" onclick="deleteConversation(event, {{ conv.id }})" title="Delete conversation">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Main Chat Area -->
+        <div class="chat-container">
+            <div id="chat-messages" class="chat-messages">
+                <div class="welcome-screen">
+                    <h1>Welcome to AI Legal Assistant</h1>
+                    <p>I'm your AI-powered legal assistant, specialized in Zimbabwe civil law and women's rights. How can I help you today?</p>
+                </div>
+            </div>
+
+            {% if subscription == 'free' and usage_count >= SUBSCRIPTION_LIMITS.free %}
+            <div class="subscription-alert">
+                <div class="alert alert-warning" role="alert">
+                    <h4 class="alert-heading">Free Tier Limit Reached!</h4>
+                    <p class="mb-0">Upgrade your plan to continue asking questions.</p>
+                    <div class="mt-2">
+                        <button class="btn btn-success btn-sm me-2" onclick="upgradePlan('basic')">
+                            Upgrade to Basic ($10/month)
+                        </button>
+                        <button class="btn btn-dark btn-sm" onclick="upgradePlan('premium')">
+                            Upgrade to Premium ($30/month)
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="chat-input-container">
+                <form id="chat-form" class="chat-input-wrapper" onsubmit="handleSubmit(event)">
+                    <textarea 
+                        id="chat-input" 
+                        class="chat-input" 
+                        placeholder="Type your message here..." 
+                        rows="1"
+                        {% if usage_count >= limit %}disabled{% endif %}
+                    ></textarea>
+                    <button 
+                        type="submit"
+                        id="send-button" 
+                        class="send-button"
+                        {% if usage_count >= limit %}disabled{% endif %}
+                    >
+                        <i class="bi bi-send-fill"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    {% else %}
+        <div class="col-12">
+            <div class="alert alert-danger m-3" role="alert">
+                <h4 class="alert-heading">Session Error</h4>
+                <p>There was an error with your session. Please try logging in again.</p>
+                <hr>
+                <a href="{{ url_for('login') }}" class="btn btn-primary">Login</a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+    .chat-container {
+        height: calc(100vh - 56px);
+        display: flex;
+        flex-direction: column;
+        background-color: var(--chat-secondary);
+    }
+
+    .chat-sidebar {
+        height: calc(100vh - 56px);
+        overflow-y: auto;
+        background-color: var(--chat-primary);
+        border-right: 1px solid var(--chat-border);
+    }
+
+    .chat-history-item {
+        padding: 12px;
+        margin: 4px 8px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .chat-history-item:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .chat-history-item.active {
+        background-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .chat-history-content {
+        flex-grow: 1;
+        overflow: hidden;
+    }
+
+    .chat-history-title {
+        font-size: 0.9rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--chat-text);
+    }
+
+    .chat-history-date {
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.5);
+        margin-top: 4px;
+    }
+</style>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let isTyping = false;
+    let currentConversationId = null;
+    let isProcessing = false;
+
+    // Initialize event listeners when the page loads
+    window.addEventListener('load', () => {
+        // Load chat from local storage if available
+        loadChatFromStorage();
+        
+        // Focus input on page load
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) {
+            chatInput.focus();
+            
+            // Auto-resize textarea
+            chatInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
+        }
+
+        // Initialize form submit handler
+        const form = document.getElementById('chat-form');
+        if (form) {
+            form.addEventListener('submit', handleSubmit);
+        }
+
+        // Highlight active conversation if any
+        if (currentConversationId) {
+            const activeItem = document.querySelector(`.chat-history-item[data-id="${currentConversationId}"]`);
+            if (activeItem) {
+                activeItem.classList.add('active');
+            }
+        }
+    });
+
+    function loadChatFromStorage() {
+        const storedConversationId = localStorage.getItem('currentConversationId');
+        if (storedConversationId) {
+            loadConversation(parseInt(storedConversationId));
+        }
+    }
+
+    function saveChatToStorage(conversationId) {
+        localStorage.setItem('currentConversationId', conversationId || '');
+    }
+
+    function createMessageElement(role, content, messageId = null) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'message-wrapper';
+        
+        const message = document.createElement('div');
+        message.className = 'message';
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'message-avatar';
+        avatar.innerHTML = role === 'user' ? '<i class="bi bi-person"></i>' : '<i class="bi bi-robot"></i>';
+        
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        messageContent.textContent = content;
+        
+        message.appendChild(avatar);
+        message.appendChild(messageContent);
+        wrapper.appendChild(message);
+
+        // Add feedback buttons only for assistant messages
+        if (role === 'assistant' && messageId) {
+            const feedbackDiv = document.createElement('div');
+            feedbackDiv.className = 'feedback-buttons';
+            
+            const helpfulBtn = document.createElement('button');
+            helpfulBtn.className = 'feedback-btn helpful';
+            helpfulBtn.innerHTML = '<i class="bi bi-hand-thumbs-up"></i> Helpful';
+            helpfulBtn.onclick = () => submitFeedback(messageId, 'positive', helpfulBtn, notHelpfulBtn);
+            
+            const notHelpfulBtn = document.createElement('button');
+            notHelpfulBtn.className = 'feedback-btn not-helpful';
+            notHelpfulBtn.innerHTML = '<i class="bi bi-hand-thumbs-down"></i> Not Helpful';
+            notHelpfulBtn.onclick = () => submitFeedback(messageId, 'negative', helpfulBtn, notHelpfulBtn);
+            
+            feedbackDiv.appendChild(helpfulBtn);
+            feedbackDiv.appendChild(notHelpfulBtn);
+            wrapper.appendChild(feedbackDiv);
+        }
+
+        return wrapper;
+    }
+
+    function addMessage(content, isUser = false, conversationId = null) {
+        const messages = document.getElementById('chat-messages');
+        const message = createMessageElement(isUser ? 'user' : 'assistant', content, conversationId);
+        
+        if (messages.children.length === 1 && messages.firstElementChild.classList.contains('welcome-screen')) {
+            messages.innerHTML = '';
+        }
+        
+        messages.appendChild(message);
+        messages.scrollTop = messages.scrollHeight;
+        
+        // Save to local storage
+        saveChatToStorage(conversationId);
+    }
+
+    function loadConversation(conversationId) {
+        // Remove active class from all history items
+        document.querySelectorAll('.chat-history-item').forEach(item => {
+            item.classList.remove('active');
+        });
+
+        // Add active class to clicked item
+        const clickedItem = document.querySelector(`.chat-history-item[data-id="${conversationId}"]`);
+        if (clickedItem) {
+            clickedItem.classList.add('active');
+        }
+
+        // Show loading indicator
+        showTypingIndicator();
+
+        // Fetch conversation details
+        fetch(`/get_conversations?id=${conversationId}`)
+            .then(response => response.json())
+            .then(data => {
+                hideTypingIndicator();
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    return;
+                }
+
+                const conversation = data.conversations.find(conv => conv.id === conversationId);
+                if (conversation) {
+                    // Clear existing messages
+                    const messages = document.getElementById('chat-messages');
+                    messages.innerHTML = '';
+
+                    // Add the messages to the chat
+                    addMessage(conversation.question, true);
+                    addMessage(conversation.answer, false, conversation.id);
+                    
+                    // Update current conversation ID and save to storage
+                    currentConversationId = conversation.id;
+                    saveChatToStorage(conversation.id);
+                }
+            })
+            .catch(error => {
+                hideTypingIndicator();
+                console.error('Error:', error);
+            });
+    }
+
+    function startNewChat() {
+        // Clear the chat messages
+        const messages = document.getElementById('chat-messages');
+        messages.innerHTML = `
+            <div class="welcome-screen">
+                <h1>Welcome to AI Legal Assistant</h1>
+                <p>I'm your AI-powered legal assistant, specialized in Zimbabwe civil law and women's rights. How can I help you today?</p>
+            </div>
+        `;
+        
+        // Reset current conversation
+        currentConversationId = null;
+        saveChatToStorage(null);
+
+        // Remove active class from all history items
+        document.querySelectorAll('.chat-history-item').forEach(item => {
+            item.classList.remove('active');
+        });
+    }
+
+    function submitFeedback(messageId, feedback, helpfulBtn, notHelpfulBtn) {
+        // Remove selected class from both buttons
+        helpfulBtn.classList.remove('selected');
+        notHelpfulBtn.classList.remove('selected');
+        
+        // Add selected class to clicked button
+        if (feedback === 'positive') {
+            helpfulBtn.classList.add('selected');
+        } else {
+            notHelpfulBtn.classList.add('selected');
+        }
+
+        // Send feedback to server
+        fetch('/save_feedback', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                conversation_id: messageId,
+                feedback: feedback
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Error saving feedback:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+
+    function showTypingIndicator() {
+        const messages = document.getElementById('chat-messages');
+        const typingWrapper = document.createElement('div');
+        typingWrapper.className = 'message-wrapper typing-wrapper';
+        typingWrapper.innerHTML = `
+            <div class="message">
+                <div class="message-avatar">
+                    <i class="bi bi-robot"></i>
+                </div>
+                <div class="message-content">
+                    <div class="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        messages.appendChild(typingWrapper);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function hideTypingIndicator() {
+        const typingWrapper = document.querySelector('.typing-wrapper');
+        if (typingWrapper) {
+            typingWrapper.remove();
+        }
+    }
+
+    function updateRemainingCount(remaining) {
+        const remainingElement = document.getElementById('remaining-count');
+        if (remainingElement) {
+            remainingElement.textContent = remaining;
+        }
+    }
+
+    function updateChatHistory(question, answer, conversationId) {
+        const historyList = document.getElementById('chat-history-list');
+        const newItem = document.createElement('div');
+        newItem.className = 'chat-history-item';
+        newItem.setAttribute('data-id', conversationId);
+        
+        const truncatedQuestion = question.length > 30 ? question.substring(0, 30) + '...' : question;
+        const currentDate = new Date().toLocaleString();
+        
+        newItem.innerHTML = `
+            <div class="d-flex align-items-start gap-3 flex-grow-1" onclick="loadConversation(${conversationId})">
+                <i class="bi bi-chat-left-text"></i>
+                <div class="chat-history-content">
+                    <div class="chat-history-title">${truncatedQuestion}</div>
+                    <div class="chat-history-date">${currentDate}</div>
+                </div>
+            </div>
+            <button class="delete-btn" onclick="deleteConversation(event, ${conversationId})" title="Delete conversation">
+                <i class="bi bi-trash"></i>
+            </button>
+        `;
+        
+        // Add new item at the top of the list
+        historyList.insertBefore(newItem, historyList.firstChild);
+        
+        // Remove active class from all items
+        document.querySelectorAll('.chat-history-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        
+        // Add active class to new item
+        newItem.classList.add('active');
+    }
+
+    function deleteConversation(event, conversationId) {
+        // Prevent the click from triggering the conversation load
+        event.stopPropagation();
+        
+        if (!confirm('Are you sure you want to delete this conversation?')) {
+            return;
+        }
+        
+        fetch('/delete_conversation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ conversation_id: conversationId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error('Error:', data.error);
+                return;
+            }
+            
+            // Remove the conversation from the sidebar
+            const item = document.querySelector(`.chat-history-item[data-id="${conversationId}"]`);
+            if (item) {
+                item.remove();
+            }
+            
+            // If this was the active conversation, clear the chat and show welcome screen
+            if (currentConversationId === conversationId) {
+                startNewChat();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+
+    function handleSubmit(event) {
+        event.preventDefault();
+        const input = document.getElementById('chat-input');
+        const question = input.value.trim();
+        
+        if (!question || isProcessing) return;
+        
+        isProcessing = true;
+        input.value = '';
+        input.style.height = 'auto';
+        
+        // Add user message
+        addMessage(question, true);
+        showTypingIndicator();
+        
+        // Send request to backend
+        fetch('/ask-llm', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ question: question })
+        })
+        .then(response => response.json())
+        .then(data => {
+            hideTypingIndicator();
+            if (data.error) {
+                addMessage(`Error: ${data.error}`, false);
+                return;
+            }
+
+            // Add assistant message with conversation ID for feedback
+            addMessage(data.answer, false, data.conversation_id);
+            
+            // Update chat history
+            updateChatHistory(question, data.answer, data.conversation_id);
+            
+            // Update current conversation ID and save to storage
+            currentConversationId = data.conversation_id;
+            saveChatToStorage(data.conversation_id);
+            
+            // Update remaining messages count if provided
+            if (data.remaining !== undefined) {
+                updateRemainingCount(data.remaining);
+            }
+        })
+        .catch(error => {
+            hideTypingIndicator();
+            addMessage(`Error: ${error.message}`, false);
+        })
+        .finally(() => {
+            isProcessing = false;
+        });
+    }
+</script>
+{% endblock %}

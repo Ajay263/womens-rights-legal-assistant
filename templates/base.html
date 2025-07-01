@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Legal Assistant</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        :root {
+            --chat-primary: #444654;
+            --chat-secondary: #343541;
+            --chat-border: #565869;
+            --chat-text: #ECECF1;
+        }
+
+        body {
+            min-height: 100vh;
+            background-color: var(--chat-secondary);
+            color: var(--chat-text);
+        }
+
+        .theme-switch {
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+
+        .theme-switch:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar {
+            border-bottom: 1px solid var(--chat-border);
+            background-color: var(--chat-primary) !important;
+        }
+
+        .navbar-brand {
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        @media (max-width: 768px) {
+            .chat-sidebar {
+                position: fixed;
+                left: -100%;
+                width: 100%;
+                z-index: 1000;
+                transition: left 0.3s ease;
+            }
+
+            .chat-sidebar.show {
+                left: 0;
+            }
+        }
+    </style>
+    <script>
+        const stripe = Stripe('pk_test_51Ljl0CCtuWZn1W9YDIiAIM5R5aSFFFqcolf1WXFu2JKTxupjBIWlS9T4KAYZIC7qv5NOnpQEBP1WHU7JWKnV8vgo00Aq4SIK1y');
+    </script>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <button class="btn text-white d-lg-none me-2" id="sidebar-toggle">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="/">AI Legal Assistant</a>
+            <div class="ms-auto d-flex align-items-center">
+                <div class="theme-switch me-3" onclick="toggleTheme()" title="Toggle theme">
+                    <i class="bi bi-moon-fill"></i>
+                </div>
+                {% if session.get('user_id') %}
+                    <div class="dropdown">
+                        <button class="btn btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('subscription') }}">Subscription</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('logout') }}">Logout</a></li>
+                        </ul>
+                    </div>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="btn btn-outline-light me-2">Login</a>
+                    <a href="{{ url_for('register') }}" class="btn btn-light">Register</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    {% block content %}{% endblock %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const themeIcon = document.querySelector('.theme-switch i');
+            
+            if (html.getAttribute('data-bs-theme') === 'dark') {
+                html.setAttribute('data-bs-theme', 'light');
+                themeIcon.classList.replace('bi-sun-fill', 'bi-moon-fill');
+            } else {
+                html.setAttribute('data-bs-theme', 'dark');
+                themeIcon.classList.replace('bi-moon-fill', 'bi-sun-fill');
+            }
+        }
+
+        // Mobile sidebar toggle
+        document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
+            document.getElementById('chat-sidebar')?.classList.toggle('show');
+        });
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', (e) => {
+            const sidebar = document.getElementById('chat-sidebar');
+            const toggle = document.getElementById('sidebar-toggle');
+            
+            if (sidebar?.classList.contains('show') && 
+                !sidebar.contains(e.target) && 
+                !toggle.contains(e.target)) {
+                sidebar.classList.remove('show');
+            }
+        });
+    </script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

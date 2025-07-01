@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="text-center">Free Plan</h3>
+                </div>
+                <div class="card-body">
+                    <h4 class="card-title text-center">$0/month</h4>
+                    <ul class="list-unstyled">
+                        <li class="mb-2">✓ 5 questions per month</li>
+                        <li class="mb-2">✓ Basic AI responses</li>
+                        <li class="mb-2">✓ Standard response time</li>
+                    </ul>
+                    <div class="text-center">
+                        <button class="btn btn-outline-primary" disabled>Current Plan</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h3 class="text-center">Basic Plan</h3>
+                </div>
+                <div class="card-body">
+                    <h4 class="card-title text-center">$10/month</h4>
+                    <ul class="list-unstyled">
+                        <li class="mb-2">✓ 15 questions per month</li>
+                        <li class="mb-2">✓ Advanced AI responses</li>
+                        <li class="mb-2">✓ Faster response time</li>
+                    </ul>
+                    <div class="text-center">
+                        {% if user.subscription == 'basic' %}
+                            <button class="btn btn-success" disabled>Current Plan</button>
+                        {% else %}
+                            <button class="btn btn-success" onclick="upgradePlan('basic')">Upgrade to Basic</button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h3 class="text-center">Premium Plan</h3>
+                </div>
+                <div class="card-body">
+                    <h4 class="card-title text-center">$30/month</h4>
+                    <ul class="list-unstyled">
+                        <li class="mb-2">✓ 100 questions per month</li>
+                        <li class="mb-2">✓ Premium AI responses</li>
+                        <li class="mb-2">✓ Priority response time</li>
+                    </ul>
+                    <div class="text-center">
+                        {% if user.subscription == 'premium' %}
+                            <button class="btn btn-dark" disabled>Current Plan</button>
+                        {% else %}
+                            <button class="btn btn-dark" onclick="upgradePlan('premium')">Upgrade to Premium</button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function upgradePlan(plan) {
+    const priceId = plan === 'basic' ? 'price_1RRYWoCtuWZn1W9YWiESinwN' : 'price_1RRYX8CtuWZn1W9Y7wrzsEu6';
+    const button = event.target;
+    button.disabled = true;
+    button.textContent = 'Processing...';
+    
+    fetch('/create-checkout-session', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ price_id: priceId }),
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => {
+                throw new Error(err.error || 'Failed to create checkout session');
+            });
+        }
+        return response.json();
+    })
+    .then(session => {
+        if (session.error) {
+            throw new Error(session.error);
+        }
+        return stripe.redirectToCheckout({
+            sessionId: session.id
+        });
+    })
+    .then(result => {
+        if (result.error) {
+            throw new Error(result.error.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.textContent = 'Upgrade to ' + plan.charAt(0).toUpperCase() + plan.slice(1);
+    });
+}
+</script>
+{% endblock %} 
