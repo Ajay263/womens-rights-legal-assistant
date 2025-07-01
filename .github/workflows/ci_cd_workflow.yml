@@ -8,11 +8,8 @@ on:
     branches:
       - main
     paths:
-      - '**.py'  # Trigger on any Python file changes
-      - 'test_*.py'  # Trigger on test files
-      - '*_test.py'  # Trigger on test files
-      - 'tests/**'  # Trigger on anything in tests directory
-  workflow_dispatch:  # Allow manual trigger
+      - '**.py'
+  workflow_dispatch:
 env:
   TEST_EXECUTION_ENV: prod
 jobs:
@@ -35,20 +32,83 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-cov allure-pytest boto3 awscli pytest-rerunfailures pandas numpy moto python-docx
         
-      - name: List Python files (debugging)
+      - name: Debug - Find test files
         run: |
-          echo "Python files in repository:"
+          echo "=== Repository structure ==="
+          find . -type f -name "*.py" | grep -E "(test_|_test\.py|conftest\.py)" || echo "No test files found with standard naming"
+          echo ""
+          echo "=== All Python files ==="
           find . -name "*.py" -type f | head -20
-          echo "Current directory contents:"
+          echo ""
+          echo "=== Root directory contents ==="
           ls -la
+          echo ""
+          echo "=== Looking for any files with 'test' in name ==="
+          find . -name "*test*" -type f || echo "No files with 'test' in name"
         
-      - name: Run Python tests
+      - name: Create simple test file if none exist
+        run: |
+          if [ ! -f test_example.py ] && [ $(find . -name "test_*.py" -o -name "*_test.py" | wc -l) -eq 0 ]; then
+            echo "No test files found, creating a simple example test..."
+            cat > test_example.py << 'EOF'
+          import allure
+          import pytest
+
+          @allure.feature("Example Feature")
+          @allure.story("Basic Test")
+          def test_example():
+              """Simple example test to generate Allure report"""
+              with allure.step("Step 1: Setup"):
+                  x = 1
+              
+              with allure.step("Step 2: Execute"):
+                  y = 2
+              
+              with allure.step("Step 3: Verify"):
+                  assert x + y == 3, "Basic math should work"
+
+          @allure.feature("Example Feature") 
+          @allure.story("Another Test")
+          def test_another_example():
+              """Another test for demo purposes"""
+              with allure.step("Testing string operations"):
+                  result = "hello".upper()
+                  assert result == "HELLO"
+
+          @allure.feature("Example Feature")
+          @allure.story("Failing Test")
+          def test_expected_failure():
+              """This test will fail to show failure reporting"""
+              with allure.step("This step will fail"):
+                  assert 1 == 2, "This is expected to fail for demo"
+          EOF
+            echo "Created test_example.py"
+          fi
+        
+      - name: Run Python tests with Allure
         id: run_tests
         continue-on-error: true
         run: |
           export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE:$PWD
-          # Run tests from root directory
-          pytest . --continue-on-collection-errors --no-summary --reruns 3 -v --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --alluredir=allure-results || echo "Tests completed with issues"
+          echo "=== Running pytest with Allure ==="
+          
+          # First, try to find and run tests
+          if find . -name "test_*.py" -o -name "*_test.py" | grep -q .; then
+            echo "Found test files, running pytest..."
+            pytest -v --alluredir=allure-results --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --tb=short
+          else
+            echo "No test files found, running pytest on current directory..."
+            pytest . -v --alluredir=allure-results --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --tb=short
+          fi
+          
+          echo "=== Checking allure-results ==="
+          if [ -d "allure-results" ]; then
+            echo "Allure results directory exists"
+            ls -la allure-results/
+            echo "Number of result files: $(ls allure-results/ | wc -l)"
+          else
+            echo "No allure-results directory found"
+          fi
         
       - name: Create allure-history directory
         if: always()
@@ -73,10 +133,34 @@ jobs:
       - name: Generate Allure Report
         uses: simple-elf/allure-report-action@master
         if: always()
+        id: allure_report
         with:
           allure_results: allure-results
           allure_history: allure-history
           keep_reports: 20
+      
+      - name: Debug - Check generated report
+        if: always()
+        run: |
+          echo "=== Checking allure-history after report generation ==="
+          if [ -d "allure-history" ]; then
+            ls -la allure-history/
+            if [ -f "allure-history/index.html" ]; then
+              echo "index.html exists in allure-history"
+              echo "File size: $(du -h allure-history/index.html)"
+            else
+              echo "No index.html found in allure-history"
+            fi
+          else
+            echo "No allure-history directory found"
+          fi
+          
+          echo "=== Checking allure-report directory ==="
+          if [ -d "allure-report" ]; then
+            ls -la allure-report/
+          else
+            echo "No allure-report directory found"
+          fi
       
       - name: Upload Allure Report
         uses: actions/upload-artifact@v4
