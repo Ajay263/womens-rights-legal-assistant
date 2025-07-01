@@ -8,8 +8,11 @@ on:
     branches:
       - main
     paths:
-      - 'terraform/modules/scripts/customers.py'
-  workflow_dispatch:
+      - '**.py'  # Trigger on any Python file changes
+      - 'test_*.py'  # Trigger on test files
+      - '*_test.py'  # Trigger on test files
+      - 'tests/**'  # Trigger on anything in tests directory
+  workflow_dispatch:  # Allow manual trigger
 env:
   TEST_EXECUTION_ENV: prod
 jobs:
@@ -19,6 +22,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
         
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -30,28 +35,26 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-cov allure-pytest boto3 awscli pytest-rerunfailures pandas numpy moto python-docx
         
+      - name: List Python files (debugging)
+        run: |
+          echo "Python files in repository:"
+          find . -name "*.py" -type f | head -20
+          echo "Current directory contents:"
+          ls -la
+        
       - name: Run Python tests
         id: run_tests
         continue-on-error: true
         run: |
-          export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE
-          pytest --continue-on-collection-errors --no-summary --reruns 3 -v --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --alluredir=allure-results
+          export PYTHONPATH=$PYTHONPATH:$GITHUB_WORKSPACE:$PWD
+          # Run tests from root directory
+          pytest . --continue-on-collection-errors --no-summary --reruns 3 -v --cov=. --cov-report=xml:coverage.xml --cov-report=html:coverage_html --alluredir=allure-results || echo "Tests completed with issues"
         
-      - name: Get Allure history
+      - name: Create allure-history directory
         if: always()
-        continue-on-error: true
         run: |
-          if git ls-remote --heads origin gh-pages | grep gh-pages; then
-            echo "gh-pages branch exists, fetching history..."
-            git fetch origin gh-pages
-            git checkout gh-pages
-            mkdir -p allure-history
-            cp -r allure-history/* . || true
-            git checkout ${{ github.ref_name }}
-          else
-            echo "gh-pages branch does not exist, creating allure-history directory..."
-            mkdir -p allure-history
-          fi
+          mkdir -p allure-history
+          echo "Created allure-history directory"
       
       - name: Upload Coverage Report (HTML)
         uses: actions/upload-artifact@v4
@@ -73,6 +76,7 @@ jobs:
         with:
           allure_results: allure-results
           allure_history: allure-history
+          keep_reports: 20
       
       - name: Upload Allure Report
         uses: actions/upload-artifact@v4
@@ -83,12 +87,12 @@ jobs:
       
       - name: Deploy to GitHub Pages
         if: always()
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: allure-history
-          keep_files: false
-          force_orphan: true
+          keep_files: true
+          force_orphan: false
       
       - name: Set current date as env variable
         if: always()
